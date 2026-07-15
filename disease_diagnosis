@@ -1,0 +1,50 @@
+% ============================================
+% Tropical Disease Diagnosis Expert System
+% ============================================
+
+start :-
+    nl,
+    write('===================================='), nl,
+    write(' Tropical Disease Diagnosis System'), nl,
+    write('===================================='), nl,
+    diagnose(Disease),
+    nl,
+    write('Possible Disease: '),
+    write(Disease), nl.
+
+diagnose(malaria) :-
+    symptom(fever),
+    symptom(headache),
+    symptom(chills),
+    symptom(sweating), !.
+
+diagnose(typhoid) :-
+    symptom(high_fever),
+    symptom(stomach_pain),
+    symptom(loss_of_appetite),
+    symptom(weakness), !.
+
+diagnose(cholera) :-
+    symptom(diarrhea),
+    symptom(vomiting),
+    symptom(dehydration), !.
+
+diagnose(dengue) :-
+    symptom(high_fever),
+    symptom(rash),
+    symptom(joint_pain),
+    symptom(headache), !.
+
+diagnose(common_cold) :-
+    symptom(cough),
+    symptom(runny_nose),
+    symptom(sneezing), !.
+
+diagnose(unknown).
+
+symptom(Symptom) :-
+    write('Do you have '),
+    write(Symptom),
+    write('? (yes/no): '),
+    read(Response),
+    Response == yes.
