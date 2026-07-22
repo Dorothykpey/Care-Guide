@@ -1,6 +1,7 @@
 {
   "name": "CareGuide Disease Diagnosis",
   "short_name": "CareGuide",
+  "id": "/",
   "description": "Guided symptom assessment and regional healthcare facility finder for Ghana.",
   "start_url": "/",
   "scope": "/",
@@ -9,12 +10,34 @@
   "background_color": "#eef9fc",
   "theme_color": "#e7f6fa",
   "lang": "en",
+  "categories": ["medical", "health", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start consultation",
+      "short_name": "Consult",
+      "url": "/#assessment",
+      "icons": [{"src": "/app-icon-192.png", "sizes": "192x192", "type": "image/png"}]
     }
   ]
 }

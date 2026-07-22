@@ -5,6 +5,7 @@ This project wraps the existing Prolog knowledge base in a small SWI-Prolog web 
 ## Requirements
 
 - [SWI-Prolog](https://www.swi-prolog.org/download/stable) (64-bit recommended)
+- [Ollama](https://ollama.com/download/windows) (optional, for the private local-AI explanation)
 
 After installing, reopen PowerShell so the `swipl` command is available.
 If Windows has not added it to `PATH`, use the full executable path shown below.
@@ -36,6 +37,16 @@ The original terminal version remains available:
 ```powershell
 swipl -s diseases_diagnosis.pl -g main
 ```
+
+## Optional local LLM
+
+Install Ollama, then download the default local model:
+
+```powershell
+ollama pull gemma3:270m
+```
+
+Keep Ollama running and use **Explain this result** on the result page. No cloud API key is required. If Ollama is unavailable, CareGuide automatically uses its built-in Prolog-based explanation. To use another installed model, set `OLLAMA_MODEL` before starting the Prolog server.
 
 ## Important
 

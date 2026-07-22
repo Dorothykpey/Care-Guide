@@ -1,0 +1,71 @@
+.voice_toolbar {
+  position: fixed;
+  left: max(.75rem, env(safe-area-inset-left));
+  bottom: calc(.75rem + env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: .4rem;
+  border: 1px solid #86bdca;
+  border-radius: 12px;
+  background: #f6fcf4e8;
+  box-shadow: 0 8px 24px #17485b2b;
+  backdrop-filter: blur(10px);
+  text-shadow: none;
+}
+
+.ai_explainer {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-left: 4px solid #2b829b;
+  background: rgba(238, 250, 253, .82);
+  border-radius: 10px;
+}
+
+.ai_explainer button {
+  width: auto;
+  min-height: 42px;
+  padding: .65rem 1rem;
+}
+
+#ai_explanation:not(:empty) {
+  margin-top: .85rem;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.voice_toolbar button {
+  width: auto;
+  min-height: 42px;
+  margin: 0;
+  padding: .6rem .8rem;
+  white-space: nowrap;
+}
+
+.voice_toolbar p {
+  margin: 0;
+  color: #214f63;
+  font-size: .76rem;
+  line-height: 1.25;
+}
+
+.voice_toolbar.listening {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px #dc262629;
+}
+
+@media (max-width: 560px) {
+  .voice_toolbar {
+    right: .75rem;
+    bottom: calc(3.8rem + env(safe-area-inset-bottom));
+  }
+
+  .voice_toolbar p {
+    overflow: hidden;
+    max-width: 145px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

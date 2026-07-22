@@ -15,7 +15,18 @@ window.addEventListener('appinstalled', () => {
 
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('/sw.js?v=16', {updateViaCache: 'none'})
+      .then(registration => registration.update())
+      .catch(() => {
+        // The web app still works online if service-worker registration fails.
+      });
   }
 
   const button = document.getElementById('install_app');

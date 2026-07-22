@@ -3,6 +3,8 @@
 :- use_module(library(http/http_parameters)).
 :- use_module(library(http/http_files)).
 :- use_module(library(http/html_write)).
+:- use_module(library(http/http_open)).
+:- use_module(library(http/http_json)).
 :- use_module(library(lists)).
 
 :- consult('diseases_diagnosis.pl').
@@ -13,6 +15,8 @@
 :- http_handler(root(setup), setup_page, []).
 :- http_handler(root(answer), answer_request, [method(post)]).
 :- http_handler(root(diagnose), diagnose_request, [method(post)]).
+:- http_handler(root('reproductive-health'), reproductive_health_page, []).
+:- http_handler(root('reproductive-health/consult'), reproductive_health_consult, [method(post)]).
 :- http_handler(root('style.css'), stylesheet, []).
 :- http_handler(root('theme.css'), theme_stylesheet, []).
 :- http_handler(root('distance.js'), distance_script, []).
@@ -24,8 +28,17 @@
 :- http_handler(root('hospital-background-4.jpg'), hospital_background_4, []).
 :- http_handler(root('manifest.webmanifest'), manifest_file, []).
 :- http_handler(root('pwa.js'), pwa_script, []).
+:- http_handler(root('location.js'), location_script, []).
+:- http_handler(root('voice.js'), voice_script, []).
+:- http_handler(root('voice.css'), voice_stylesheet, []).
+:- http_handler(root('mobile.css'), mobile_stylesheet, []).
+:- http_handler(root('ollama.js'), ollama_script, []).
+:- http_handler(root('llm/explain'), local_llm_explain, [method(post)]).
 :- http_handler(root('sw.js'), service_worker, []).
 :- http_handler(root('app-icon.svg'), app_icon, []).
+:- http_handler(root('app-icon-192.png'), app_icon_192, []).
+:- http_handler(root('app-icon-512.png'), app_icon_512, []).
+:- http_handler(root('offline.html'), offline_page, []).
 
 start :- start(8080).
 
@@ -49,9 +62,14 @@ home(_Request) :-
           link([rel(icon), href('/app-icon.svg'), type('image/svg+xml')], []),
           link([rel(stylesheet), href('/style.css')], []),
           link([rel(stylesheet), href('/theme.css')], []),
+          link([rel(stylesheet), href('/voice.css')], []),
+          link([rel(stylesheet), href('/mobile.css?v=16')], []),
           script([src('/carousel.js'), defer], []),
           script([src('/background-carousel.js'), defer], []),
-          script([src('/pwa.js'), defer], [])
+          script([src('/location.js'), defer], []),
+          script([src('/pwa.js?v=16'), defer], []),
+          script([src('/voice.js?v=16'), defer], []),
+          script([src('/ollama.js?v=16'), defer], [])
         ],
         [ div(class(landing_page),
               [ nav(class(top_nav),
@@ -85,12 +103,10 @@ home(_Request) :-
                                     div([label([for(region)], 'Region'),
                                          select([name(region), id(region), required], \region_options)])
                                   ]),
-                              label([for(address)], 'House address or GhanaPost GPS address'),
-                              input([type(text), name(address), id(address), required,
-                                     minlength(5), autocomplete('street-address'),
-                                     placeholder('Example: GA-123-4567 or street and town')]),
+                              input([type(hidden), name(address), id(address), value('region-only')]),
                               p([id(safety), class(privacy_note)],
-                                'Your address is used only to locate nearby care and is not saved.'),
+                                'Your device will request location permission to estimate nearby care. Your location is not saved.'),
+                              p([id(location_setup_status), class(privacy_note)], ''),
                               button([type(submit)], 'Begin consultation \u2192')
                             ]),
                        div([id(coverage), class(hero_disclaimer)],
@@ -107,8 +123,12 @@ setup_page(_Request) :-
           link([rel(manifest), href('/manifest.webmanifest')], []),
           link([rel(stylesheet), href('/style.css')], []),
           link([rel(stylesheet), href('/theme.css')], []),
+          link([rel(stylesheet), href('/voice.css')], []),
+          link([rel(stylesheet), href('/mobile.css?v=16')], []),
           script([src('/background-carousel.js'), defer], []),
-          script([src('/pwa.js'), defer], [])
+          script([src('/location.js'), defer], []),
+          script([src('/pwa.js?v=16'), defer], []),
+          script([src('/voice.js?v=16'), defer], [])
         ],
         [ div(class(container),
               [ a([href('/')], '\u2190 Back to home'),
@@ -119,20 +139,28 @@ setup_page(_Request) :-
                        select([name(language), id(language), required], \language_options),
                        label([for(region)], 'Region'),
                        select([name(region), id(region), required], \region_options),
-                       label([for(address)], 'House address or GhanaPost GPS address'),
-                       input([type(text), name(address), id(address), required,
-                              minlength(5), autocomplete('street-address'),
-                              placeholder('Example: GA-123-4567 or street and town')]),
-                       p(class(privacy_note), 'Your address is used only to locate nearby care and is not saved.'),
+                       input([type(hidden), name(address), id(address), value('region-only')]),
+                       p(class(privacy_note), 'Your device will request location permission. Your location is not saved.'),
+                       p([id(location_setup_status), class(privacy_note)], ''),
                        button([type(submit)], 'Continue to symptom questions \u2192')
                      ])
               ])
         ]).
 
 language_options -->
-    html([ option([value(en)], 'English'),
-           option([value(fr)], 'Français'),
-           option([value(es)], 'Español')
+    html([ optgroup([label('International languages')],
+                    [option([value(en)], 'English'),
+                     option([value(fr)], 'French'),
+                     option([value(es)], 'Spanish'),
+                     option([value(zh)], 'Chinese')]),
+           optgroup([label('Ghanaian and local languages')],
+                    [option([value(tw)], 'Twi'),
+                     option([value(ee)], 'Ewe'),
+                     option([value(gaa)], 'Ga'),
+                     option([value(ada)], 'Dangme / Adangbe'),
+                     option([value(dag)], 'Dagbani'),
+                     option([value(fat)], 'Fante'),
+                     option([value(ha)], 'Hausa')])
          ]).
 
 region_options -->
@@ -157,7 +185,7 @@ region_options -->
 begin_consultation(Request) :-
     http_parameters(Request,
                     [ region(Region, [oneof([ahafo, ashanti, bono, bono_east, central, eastern, greater_accra, north_east, northern, oti, savannah, upper_east, upper_west, volta, western, western_north])]),
-                      language(Language, [oneof([en, fr, es])])
+                      language(Language, [oneof([en, fr, es, zh, tw, ee, gaa, ada, dag, fat, ha])])
                       ,address(Address, [string, length >= 5])
                     ]),
     next_step([], [], Region, Language, Address).
@@ -169,7 +197,7 @@ answer_request(Request) :-
                       yes(YesAtom, [atom, default('')]),
                       no(NoAtom, [atom, default('')]),
                       region(Region, [oneof([ahafo, ashanti, bono, bono_east, central, eastern, greater_accra, north_east, northern, oti, savannah, upper_east, upper_west, volta, western, western_north])]),
-                      language(Language, [oneof([en, fr, es])])
+                      language(Language, [oneof([en, fr, es, zh, tw, ee, gaa, ada, dag, fat, ha])])
                       ,address(Address, [string, length >= 5])
                     ]),
     decode_answers(YesAtom, Yes0),
@@ -214,8 +242,11 @@ question_page(Symptom, Yes, No, Region, Language, Address) :-
           link([rel(manifest), href('/manifest.webmanifest')], []),
           link([rel(stylesheet), href('/style.css')], []),
           link([rel(stylesheet), href('/theme.css')], []),
+          link([rel(stylesheet), href('/voice.css')], []),
+          link([rel(stylesheet), href('/mobile.css?v=16')], []),
           script([src('/background-carousel.js'), defer], []),
-          script([src('/pwa.js'), defer], [])
+          script([src('/pwa.js?v=16'), defer], []),
+          script([src('/voice.js?v=16'), defer], [])
         ],
         [ div(class(container),
               [ a([href('/')], ['\u2190 ', CancelText]),
@@ -293,9 +324,13 @@ result_page(Disease, Advice, Specialist, Region, Facilities, Language, Address) 
           link([rel(manifest), href('/manifest.webmanifest')], []),
           link([rel(stylesheet), href('/style.css')], []),
           link([rel(stylesheet), href('/theme.css')], []),
+          link([rel(stylesheet), href('/voice.css')], []),
+          link([rel(stylesheet), href('/mobile.css?v=16')], []),
           script([src('/distance.js'), defer], []),
           script([src('/background-carousel.js'), defer], []),
-          script([src('/pwa.js'), defer], [])
+          script([src('/pwa.js?v=16'), defer], []),
+          script([src('/voice.js?v=16'), defer], []),
+          script([src('/ollama.js?v=16'), defer], [])
         ],
         [ div(class(container),
               [ a([href('/')], '\u2190 Start again'),
@@ -305,12 +340,20 @@ result_page(Disease, Advice, Specialist, Region, Facilities, Language, Address) 
                       p([strong([SpecialistText, ': ']), Specialist]),
                       p([strong([GuidanceText, ': ']), DisplayAdvice])
                     ]),
+                \reproductive_health_option(Disease, Region, Language, Address),
+                section([class(ai_explainer), id(ai_explainer),
+                         data_disease(DiseaseLabel), data_advice(DisplayAdvice),
+                         data_specialist(Specialist), data_language(Language)],
+                    [ h2('Clear result explanation'),
+                      p('Get a simple explanation from the built-in medical guidance. Local AI is used automatically when available.'),
+                      button([type(button), id(ai_explain_button)], 'Explain this result'),
+                      div([id(ai_explanation), role(status), aria_live(polite)], '')
+                    ]),
                 div([id(address_verification), data_address(Address), data_region(Region)],
-                    [ h2('Verify your address to see nearby facilities'),
-                      p(['Address entered: ', Address]),
-                      button([type(button), id(locate_button)], 'Verify address and find nearby care'),
+                    [ h2('Use your location to see nearby facilities'),
+                      button([type(button), id(locate_button)], 'Use my location and find nearby care'),
                       p([id(location_status), class(category)],
-                        'Your address is not stored. Verification uses an external map service.')
+                        'Your precise location is used only in this browser and is not stored.')
                     ]),
                 section([id(facilities_section), hidden],
                     [ h2([FacilitiesText, ' ', RegionLabel]),
@@ -323,6 +366,142 @@ result_page(Disease, Advice, Specialist, Region, Facilities, Language, Address) 
                     ['This result is informational and cannot replace examination, testing, or advice from a licensed professional.'])
               ])
         ]).
+
+reproductive_health_option(unknown_disease, Region, Language, Address) --> !,
+    { format(atom(Link),
+             '/reproductive-health?region=~w&language=~w&address=~w',
+             [Region, Language, Address]) },
+    html(section(class(notice),
+                 [ h2('Is your concern about a missed period or possible pregnancy?'),
+                   p('A missed period has several possible causes. If pregnancy is possible, you can continue to a private, nonjudgmental reproductive-health consultation.'),
+                   a([href(Link), class(nav_action)], 'Continue to reproductive-health consultation')
+                 ])).
+reproductive_health_option(_, _, _, _) --> [].
+
+reproductive_health_page(Request) :-
+    http_parameters(Request,
+                    [ region(Region, [oneof([ahafo, ashanti, bono, bono_east, central, eastern, greater_accra, north_east, northern, oti, savannah, upper_east, upper_west, volta, western, western_north])]),
+                      language(Language, [oneof([en, fr, es, zh, tw, ee, gaa, ada, dag, fat, ha]), default(en)]),
+                      address(Address, [string, default('region-only')])
+                    ]),
+    reply_html_page(
+        [ title('Private reproductive-health consultation'),
+          meta([name(viewport), content('width=device-width, initial-scale=1, viewport-fit=cover')]),
+          link([rel(stylesheet), href('/style.css')], []),
+          link([rel(stylesheet), href('/theme.css')], [])
+        ],
+        [ div(class(container),
+              [ a([href('/')], '\u2190 Start again'),
+                h1('Private reproductive-health consultation'),
+                p('This screening cannot confirm pregnancy or decide what is right for you. Your answers are used only to show guidance on this page and are not stored.'),
+                form([action('/reproductive-health/consult'), method(post), class(setup_form)],
+                     [ input([type(hidden), name(region), value(Region)]),
+                       input([type(hidden), name(language), value(Language)]),
+                       input([type(hidden), name(address), value(Address)]),
+                       label([for(missed_period)], 'How long has your period been late or absent?'),
+                       select([name(missed_period), id(missed_period), required],
+                              [ option([value(less_than_one_week)], 'Less than one week'),
+                                option([value(one_to_four_weeks)], '1 to 4 weeks'),
+                                option([value(one_to_three_months)], '1 to 3 months'),
+                                option([value(more_than_three_months)], 'More than 3 months'),
+                                option([value(unsure)], 'I am not sure') ]),
+                       label([for(pregnancy_test)], 'Have you taken a pregnancy test?'),
+                       select([name(pregnancy_test), id(pregnancy_test), required],
+                              [ option([value(not_taken)], 'No'),
+                                option([value(positive)], 'Yes, positive'),
+                                option([value(negative)], 'Yes, negative'),
+                                option([value(unclear)], 'The result was unclear') ]),
+                       label([for(pregnancy_intention)], 'Are you considering ending a possible or confirmed pregnancy?'),
+                       select([name(pregnancy_intention), id(pregnancy_intention), required],
+                              [ option([value(yes)], 'Yes'),
+                                option([value(no)], 'No'),
+                                option([value(unsure)], 'I am unsure') ]),
+                       label([for(reason)], 'What would you like the clinician to understand about your situation? (optional)'),
+                       textarea([name(reason), id(reason), maxlength(500), rows(5), placeholder('For example: health, safety, family, financial, education, relationship, or another personal concern.')], ''),
+                       fieldset([ legend('Do you have any urgent warning signs?'),
+                                  label([input([type(checkbox), name(warning), value(severe_pain)]), ' Severe or one-sided abdominal/pelvic pain']),
+                                  label([input([type(checkbox), name(warning), value(heavy_bleeding)]), ' Heavy vaginal bleeding']),
+                                  label([input([type(checkbox), name(warning), value(fainting)]), ' Fainting, severe dizziness, weakness, or looking very pale']),
+                                  label([input([type(checkbox), name(warning), value(fever)]), ' Fever or foul-smelling discharge']) ]),
+                       button([type(submit)], 'Review safe next steps')
+                     ]),
+                div(class(notice), 'Do not use unknown pills, herbs, chemicals, objects, or physical injury to try to end a pregnancy. A qualified clinician can discuss confidential, evidence-based options.')
+              ])
+        ]).
+
+reproductive_health_consult(Request) :-
+    http_parameters(Request,
+                    [ region(Region, [oneof([ahafo, ashanti, bono, bono_east, central, eastern, greater_accra, north_east, northern, oti, savannah, upper_east, upper_west, volta, western, western_north])]),
+                      language(_Language, [atom, default(en)]),
+                      address(Address, [string, default('region-only')]),
+                      missed_period(Missed, [oneof([less_than_one_week, one_to_four_weeks, one_to_three_months, more_than_three_months, unsure])]),
+                      pregnancy_test(Test, [oneof([not_taken, positive, negative, unclear])]),
+                      pregnancy_intention(Intention, [oneof([yes, no, unsure])]),
+                      reason(_Reason, [string, optional(true), default('')]),
+                      warning(Warnings, [list(atom), default([])])
+                    ]),
+    findall(facility(Category, Name, Details),
+            hospital(Region, Category, Name, Details), Facilities),
+    reproductive_health_result(Region, Address, Missed, Test, Intention, Warnings, Facilities).
+
+reproductive_health_result(Region, Address, Missed, Test, Intention, Warnings, Facilities) :-
+    human_label(Region, RegionLabel),
+    human_label(Missed, MissedLabel),
+    human_label(Test, TestLabel),
+    human_label(Intention, IntentionLabel),
+    ( Warnings == [] -> Urgent = false ; Urgent = true ),
+    reply_html_page(
+        [ title('Reproductive-health next steps'),
+          meta([name(viewport), content('width=device-width, initial-scale=1, viewport-fit=cover')]),
+          link([rel(stylesheet), href('/style.css')], []),
+          link([rel(stylesheet), href('/theme.css')], []),
+          script([src('/distance.js'), defer], [])
+        ],
+        [ div(class(container),
+              [ h1('Reproductive-health next steps'),
+                \urgent_reproductive_message(Urgent),
+                div(class(result),
+                    [ p([strong('Period timing: '), MissedLabel]),
+                      p([strong('Pregnancy test: '), TestLabel]),
+                      p([strong('Considering ending the pregnancy: '), IntentionLabel]),
+                      \pregnancy_test_guidance(Test),
+                      \pregnancy_options_guidance(Intention)
+                    ]),
+                p('You do not need to justify your personal decision to this app. A qualified clinician should listen without judgment, confirm the pregnancy and its duration when needed, explain available options and risks, check for coercion or safety concerns, and respect your consent and privacy.'),
+                div([id(address_verification), data_address(Address), data_region(Region)],
+                    [ h2('Find care'),
+                      button([type(button), id(locate_button)], 'Use my location and find nearby care'),
+                      p([id(location_status), class(category)], 'Your precise location is not stored.') ]),
+                section([id(facilities_section)],
+                    [ h2(['Medical facilities in ', RegionLabel]),
+                      div(class(emergency_contact), [strong('Emergency warning signs? '), 'Call Ghana emergency services: ', a([href('tel:112')], '112')]),
+                      div(class(facilities), \facility_cards(Facilities)) ]),
+                div(class(notice), 'This app does not provide abortion medication, dosing, or procedure instructions. Obtain care from a qualified reproductive-health professional.')
+              ])
+        ]).
+
+urgent_reproductive_message(true) --> !,
+    html(div(class(emergency_contact),
+             [ strong('Seek emergency care now. '),
+               'Severe or one-sided pain, heavy bleeding, fainting, marked weakness, fever, or foul-smelling discharge can indicate a dangerous complication. Call ',
+               a([href('tel:112')], '112'), ' or go to the nearest emergency department.' ])).
+urgent_reproductive_message(false) --> [].
+
+pregnancy_test_guidance(not_taken) --> !,
+    html(p('Take a reliable home pregnancy test according to its instructions or visit a clinic for testing. A missed period alone does not confirm pregnancy.')).
+pregnancy_test_guidance(negative) --> !,
+    html(p('If the test was taken early, repeat it according to its instructions or arrange clinical testing. Seek assessment if periods remain absent.')).
+pregnancy_test_guidance(unclear) --> !,
+    html(p('Repeat the test with a new kit or arrange testing at a clinic before making pregnancy-related decisions.')).
+pregnancy_test_guidance(positive) -->
+    html(p('Arrange timely care with a qualified reproductive-health professional to confirm the pregnancy as appropriate and discuss your preferences.')).
+
+pregnancy_options_guidance(yes) --> !,
+    html(p('Ask for confidential pregnancy-options counselling and safe abortion care from a qualified provider. Do not delay: available care can depend on pregnancy duration and clinical circumstances.')).
+pregnancy_options_guidance(unsure) --> !,
+    html(p('Ask for unbiased pregnancy-options counselling. You may discuss continuing the pregnancy, adoption where available, or abortion care without pressure.')).
+pregnancy_options_guidance(no) -->
+    html(p('A clinician can assess the missed period, discuss pregnancy care if confirmed, and check other possible causes if pregnancy is not confirmed.')).
 
 facility_cards([]) --> html(p('No facilities are listed for this region.')).
 facility_cards([facility(Category, Name, Details)|Rest]) -->
@@ -398,13 +577,13 @@ human_label(Atom, Label) :-
 
 stylesheet(_Request) :-
     format('Content-type: text/css; charset=UTF-8~n~n'),
-    format('~s', [":root{font-family:Inter,Segoe UI,system-ui,sans-serif;color:#172b3a;background:#dcecf2}*{box-sizing:border-box}body{min-height:100vh;margin:0;background:#dcecf2}body:before{content:'';position:fixed;inset:0;pointer-events:none;background:linear-gradient(110deg,#eaf5f76b 0%,#dcecf052 48%,#b7d6df3d 100%);z-index:-1}.background_carousel{position:fixed;inset:0;z-index:-2;overflow:hidden}.background_slide{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transform:scale(1.045);transition:opacity 1.6s ease,transform 7s ease}.background_slide.active{opacity:1;transform:scale(1)}.container{max-width:900px;margin:3rem auto;padding:0 1.2rem;text-shadow:0 1px 3px #fff,0 0 12px #ffffffdd}header{margin-bottom:1.5rem}h1{color:#075985;letter-spacing:-.025em}h2,h3{color:#163b50}.notice{background:transparent;border:0;padding:.5rem 0;margin:1rem 0;border-radius:0;box-shadow:none;backdrop-filter:none}form,.result,article{background:transparent;padding:.7rem 0;border:0;border-radius:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}.carousel{position:relative;margin:0 0 1rem;overflow:hidden;border-radius:0}.carousel_track{display:grid}.carousel_slide{grid-area:1/1;min-height:132px;padding:1rem 4rem 1.35rem;display:flex;flex-direction:column;justify-content:center;opacity:0;visibility:hidden;transform:translateX(24px);transition:opacity .45s ease,transform .45s ease,visibility .45s;background:transparent;border:0;box-shadow:none;backdrop-filter:none}.carousel_slide.active{opacity:1;visibility:visible;transform:none}.carousel_slide p{max-width:620px;margin:.2rem 0;font-size:.88rem;line-height:1.4}.carousel_slide h2{margin:.1rem 0;font-size:1.2rem}.carousel_slide .category{font-size:.72rem;letter-spacing:.04em}.carousel_controls{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:.4rem}.carousel_controls button{pointer-events:auto}.carousel_prev,.carousel_next{width:32px;height:32px;margin:0;padding:0;border-radius:50%;font-size:1.35rem;line-height:1}.carousel_dots{position:absolute;left:50%;bottom:8px;display:flex;gap:6px;transform:translateX(-50%)}.carousel_dot{width:7px;height:7px;margin:0;padding:0;border-radius:50%;background:#8eabb8;box-shadow:none}.carousel_dot.active{background:#075985;transform:scale(1.2)}fieldset{border:0;padding:0;margin:0 0 1.2rem}legend{font-size:1.25rem;font-weight:700;margin-bottom:.8rem}.symptoms{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.65rem}.symptom{background:transparent;padding:.65rem 0;border:0;border-radius:0}.symptom input{margin-right:.55rem}select,input[type=text],button{display:block;width:100%;padding:.85rem;margin:.55rem 0 1rem;border-radius:9px;border:1px solid #8daab8;text-shadow:none}select,input[type=text]{background:#ffffffc4;color:#172b3a}button{background:linear-gradient(135deg,#0878ad,#075985);color:white;border:0;font-weight:700;cursor:pointer;box-shadow:0 7px 18px #07598535;transition:transform .18s ease,box-shadow .18s ease}button:hover{transform:translateY(-1px);box-shadow:0 10px 23px #07598545}.no_button{background:linear-gradient(135deg,#64748b,#475569)}.facilities{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem}.category{color:#024f7a;font-weight:700}a{color:#064f73;font-weight:700;text-decoration:none}a:hover{text-decoration:underline}@media(prefers-reduced-motion:reduce){.background_slide{transition:none;transform:none}}@media(max-width:600px){.background_slide{background-position:62% center}.container{margin:1.5rem auto}.result,form,article{padding:.5rem 0}h1{font-size:1.8rem}.carousel_slide{padding:.85rem 2.9rem 1.25rem;min-height:150px}.carousel_slide h2{font-size:1.08rem}.carousel_slide p{font-size:.82rem}}"]),
+    format('~s', [":root{font-family:Inter,Segoe UI,system-ui,sans-serif;color:#172b3a;background:#dcecf2}*{box-sizing:border-box}body{min-height:100vh;margin:0;background:#dcecf2}body:before{content:'';position:fixed;inset:0;pointer-events:none;background:linear-gradient(110deg,#eaf5f76b 0%,#dcecf052 48%,#b7d6df3d 100%);z-index:-1}.background_carousel{position:fixed;inset:0;z-index:-2;overflow:hidden}.background_slide{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transform:scale(1.045);transition:opacity 1.6s ease,transform 7s ease}.background_slide.active{opacity:1;transform:scale(1)}.container{max-width:900px;margin:3rem auto;padding:0 1.2rem;text-shadow:0 1px 3px #fff,0 0 12px #ffffffdd}header{margin-bottom:1.5rem}h1{color:#075985;letter-spacing:-.025em}h2,h3{color:#163b50}.notice{background:transparent;border:0;padding:.5rem 0;margin:1rem 0;border-radius:0;box-shadow:none;backdrop-filter:none}form,.result,article{background:transparent;padding:.7rem 0;border:0;border-radius:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}.carousel{position:relative;margin:0 0 1rem;overflow:hidden;border-radius:0}.carousel_track{display:grid}.carousel_slide{grid-area:1/1;min-height:132px;padding:1rem 4rem 1.35rem;display:flex;flex-direction:column;justify-content:center;opacity:0;visibility:hidden;transform:translateX(24px);transition:opacity .45s ease,transform .45s ease,visibility .45s;background:transparent;border:0;box-shadow:none;backdrop-filter:none}.carousel_slide.active{opacity:1;visibility:visible;transform:none}.carousel_slide p{max-width:620px;margin:.2rem 0;font-size:.88rem;line-height:1.4}.carousel_slide h2{margin:.1rem 0;font-size:1.2rem}.carousel_slide .category{font-size:.72rem;letter-spacing:.04em}.carousel_controls{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:.4rem}.carousel_controls button{pointer-events:auto}.carousel_prev,.carousel_next{width:32px;height:32px;margin:0;padding:0;border-radius:50%;font-size:1.35rem;line-height:1}.carousel_dots{position:absolute;left:50%;bottom:8px;display:flex;gap:6px;transform:translateX(-50%)}.carousel_dot{width:7px;height:7px;margin:0;padding:0;border-radius:50%;background:#8eabb8;box-shadow:none}.carousel_dot.active{background:#075985;transform:scale(1.2)}fieldset{border:0;padding:0;margin:0 0 1.2rem}legend{font-size:1.25rem;font-weight:700;margin-bottom:.8rem}.symptoms{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.65rem}.symptom{background:transparent;padding:.65rem 0;border:0;border-radius:0}.symptom input{margin-right:.55rem}select,input[type=text],textarea,button{display:block;width:100%;padding:.85rem;margin:.55rem 0 1rem;border-radius:9px;border:1px solid #8daab8;text-shadow:none}select,input[type=text],textarea{background:#ffffffc4;color:#172b3a;font:inherit}textarea{resize:vertical}button{background:linear-gradient(135deg,#0878ad,#075985);color:white;border:0;font-weight:700;cursor:pointer;box-shadow:0 7px 18px #07598535;transition:transform .18s ease,box-shadow .18s ease}button:hover{transform:translateY(-1px);box-shadow:0 10px 23px #07598545}.no_button{background:linear-gradient(135deg,#64748b,#475569)}.facilities{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem}.category{color:#024f7a;font-weight:700}a{color:#064f73;font-weight:700;text-decoration:none}a:hover{text-decoration:underline}@media(prefers-reduced-motion:reduce){.background_slide{transition:none;transform:none}}@media(max-width:600px){.background_slide{background-position:62% center}.container{margin:1.5rem auto}.result,form,article{padding:.5rem 0}h1{font-size:1.8rem}.carousel_slide{padding:.85rem 2.9rem 1.25rem;min-height:150px}.carousel_slide h2{font-size:1.08rem}.carousel_slide p{font-size:.82rem}}"]),
     format('~s', [".landing_page{min-height:100vh;color:#f8fafc;background:linear-gradient(90deg,#07111ee8 0%,#0c1928c9 48%,#14243880 100%);text-shadow:none}.top_nav{height:92px;padding:0 clamp(1.5rem,5vw,6rem);display:flex;align-items:center;gap:2.5rem;background:#101b2beF;border-bottom:1px solid #ffffff12;position:relative;z-index:5}.brand{display:flex;align-items:center;color:#f8fafc;font-size:1.55rem;font-weight:800;letter-spacing:-.04em;white-space:nowrap}.brand strong{color:#22c7a9}.brand_mark{display:grid;place-items:center;width:44px;height:44px;margin-right:.65rem;border:1px solid #22c7a966;border-radius:12px;color:#22c7a9;background:#07111e}.nav_links{display:flex;align-items:center;gap:2.25rem;margin-left:auto}.nav_links a{color:#a9b5c6;font-weight:600}.nav_links a:hover{color:#fff;text-decoration:none}.nav_action{width:auto;padding:.8rem 1.35rem;border:1px solid #22c7a977;border-radius:10px;color:#fff;background:#22c7a91c}.hero{min-height:calc(100vh - 92px);padding:clamp(3rem,7vw,7rem) clamp(1.5rem,5vw,6rem) 2rem;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.65fr);align-items:center;gap:clamp(2.5rem,6vw,7rem);position:relative}.hero_copy{max-width:850px}.eyebrow{display:inline-flex;gap:.7rem;align-items:center;padding:.65rem 1.15rem;border:1px solid #22c7a977;border-radius:999px;color:#5eead4;font-size:.78rem;font-weight:800;letter-spacing:.14em}.eyebrow span{font-size:1.3rem}.hero h1{margin:1.8rem 0 1.2rem;color:#fff;font-size:clamp(3rem,5.7vw,6.5rem);line-height:.94;letter-spacing:-.065em}.hero_intro{max-width:700px;color:#c1ccda;font-size:1.12rem;line-height:1.75}.feature_line{display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:1.4rem;color:#d8e2ec;font-size:.88rem}.hero_form{padding:1.6rem!important;background:#111d2be6!important;border:1px solid #ffffff1c!important;border-radius:16px!important;box-shadow:0 24px 65px #0007!important;backdrop-filter:blur(16px)!important}.hero_form h2{margin:0;color:#fff;font-size:1.45rem}.hero_form>p{margin:.4rem 0 1.1rem;color:#9eacbd}.hero_form label{color:#dce5ef;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.hero_form select,.hero_form input[type=text]{background:#1b2939;color:#f8fafc;border:1px solid #405064;margin-top:.35rem}.hero_form button{margin-bottom:.4rem;background:linear-gradient(135deg,#20b99e,#0f8c7b);font-size:1rem}.form_grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}.privacy_note{color:#95a5b6!important;font-size:.76rem;line-height:1.45}.hero_disclaimer{position:absolute;left:clamp(1.5rem,5vw,6rem);bottom:1.2rem;color:#93a4b6;font-size:.75rem}.landing_page .background_slide{filter:saturate(.82)}@media(max-width:900px){.nav_links{display:none}.nav_action{margin-left:auto}.hero{grid-template-columns:1fr;padding-top:3rem;padding-bottom:4rem}.hero h1{font-size:clamp(3rem,11vw,5.5rem)}.hero_form{max-width:620px}.hero_disclaimer{position:static;grid-column:1}}@media(max-width:560px){.top_nav{height:76px;padding:0 1rem}.brand{font-size:1.25rem}.brand_mark{width:38px;height:38px}.nav_action{font-size:.8rem;padding:.65rem .8rem}.hero{min-height:calc(100vh - 76px);padding:2rem 1rem 3rem}.hero h1{font-size:2.75rem}.eyebrow{font-size:.62rem;padding:.55rem .8rem}.form_grid{grid-template-columns:1fr}}"]),
     format('~s', [".background_controls{position:fixed;right:clamp(1rem,3vw,3rem);bottom:calc(1.1rem + env(safe-area-inset-bottom));z-index:20;display:flex;align-items:center;gap:.5rem;padding:.3rem .45rem;border:1px solid #ffffff26;border-radius:999px;background:#0b1624a8;backdrop-filter:blur(8px)}.background_controls button{margin:0;padding:0;width:29px;height:29px;border-radius:50%;display:grid;place-items:center;background:#ffffff17;border:1px solid #ffffff24;color:#fff;box-shadow:none;font-size:1.05rem}.background_controls button:hover{background:#22c7a9;transform:none}.background_dots{display:flex;gap:.35rem}.background_dots .background_dot{width:6px;height:6px;border:0;background:#ffffff66}.background_dots .background_dot.active{width:18px;border-radius:8px;background:#22c7a9}.hero_form{padding:1.35rem!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;text-shadow:0 2px 8px #000,0 0 18px #07111e}.hero_form h2{font-size:1.25rem}.hero_form>p{font-size:.84rem;margin:.35rem 0 1rem;color:#dbe5ef}.privacy_note{font-size:.68rem!important;margin:.65rem 0 0;color:#d6e0e9!important}.setup_form{max-width:620px;margin-top:1.25rem}.eyebrow{padding:.48rem .82rem;font-size:.67rem}.nav_action{padding:.62rem 1rem;font-size:.85rem;border-radius:8px}.install_action{display:block;width:auto;margin:0;padding:.62rem 1rem;border-radius:8px;background:#20b99e;color:#fff;box-shadow:none;font-size:.85rem;white-space:nowrap}.install_action[hidden]{display:none}@media(max-width:560px){.top_nav{padding-left:max(1rem,env(safe-area-inset-left));padding-right:max(1rem,env(safe-area-inset-right))}.nav_action{display:none}.install_action{margin-left:auto;min-height:42px}.background_controls{right:max(.75rem,env(safe-area-inset-right));bottom:calc(.6rem + env(safe-area-inset-bottom))}.background_controls button{width:30px;height:30px}.hero{padding-left:max(1rem,env(safe-area-inset-left));padding-right:max(1rem,env(safe-area-inset-right))}.hero_form{padding:1rem 0!important}.hero_form select,.hero_form input[type=text],.hero_form button{min-height:46px;font-size:16px}}"]).
 
 theme_stylesheet(_Request) :-
     format('Content-type: text/css; charset=UTF-8~n~n'),
-    format('~s', ["body:before{background:linear-gradient(110deg,#f7fcfdb5 0%,#e7f6fab0 48%,#cfeaf394 100%)}.background_carousel{z-index:0}.landing_page,.container{position:relative;z-index:2}.landing_page{color:#17364a;background:linear-gradient(90deg,#f8fcfd9c 0%,#e5f5f889 48%,#d2edf35c 100%)}body:has(.landing_page):before{z-index:1;background:linear-gradient(90deg,#eef9fc4a 0%,#e4f5f83d 55%,transparent 100%)}.top_nav{background:#f8fcf4d4;border-bottom:1px solid #9ccbd74d;box-shadow:0 5px 22px #2b607216}.brand{color:#12344a}.brand strong{color:#148aa0}.brand_mark{color:#148aa0;background:#eaf8fb;border-color:#42a9bb70}.nav_links a{color:#527080}.nav_links a:hover{color:#0f526b}.nav_action{color:#0d6078;background:#e3f5f8;border-color:#44a9ba88}.hero h1{color:#12344a;text-shadow:0 2px 12px #fff}.hero_intro{color:#355b6d}.feature_line{color:#284e61}.eyebrow{color:#087b91;background:#ffffff78;border-color:#3aa2b58a}.hero_form{color:#17364a!important;text-shadow:0 1px 8px #fff!important}.hero_form h2{color:#123f55}.hero_form>p{color:#3f6172!important}.hero_form label{color:#214f63}.hero_form select,.hero_form input[type=text]{background:#ffffffd9;color:#17364a;border-color:#7db6c5}.privacy_note{color:#416777!important}.hero_disclaimer{color:#456979}.background_controls{background:#f6fcf4c7;border-color:#82bac799;box-shadow:0 8px 25px #25596b22}.background_controls button{color:#176a80;background:#ffffffc9;border-color:#72aebc88}.background_controls button:hover{color:#fff;background:#2399ad}.background_dots .background_dot{background:#77a9b5}.background_dots .background_dot.active{background:#168ca2}.install_action{background:#168ca2}.container{color:#183b4d;text-shadow:0 1px 8px #fff}.container h1,.container h2,.container h3{color:#124d66}.category,a{color:#12677f}.phone a{display:inline-block;padding:.35rem .65rem;border-radius:7px;background:#daf3f7;color:#075f75;text-shadow:none}.phone_unverified{color:#6b7280;font-size:.82rem}.emergency_contact{margin:.75rem 0 1rem;padding:.8rem 1rem;border-left:4px solid #dc2626;background:#fff7f7d9;border-radius:8px;text-shadow:none}.emergency_contact a{font-size:1.15rem;color:#b91c1c;text-decoration:underline}.answer_form{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center}.answer_form input[type=hidden]{display:none}.answer_form button{width:112px;min-height:44px;margin:.4rem 0;padding:.6rem 1rem}.answer_form .no_button{width:112px}@media(max-width:420px){.answer_form button,.answer_form .no_button{width:100px}}"]).
+    format('~s', ["body:before{background:linear-gradient(110deg,#f7fcfdb5 0%,#e7f6fab0 48%,#cfeaf394 100%)}.background_carousel{z-index:0}.landing_page,.container{position:relative;z-index:2}.landing_page{color:#17364a;background:linear-gradient(90deg,#f8fcfd9c 0%,#e5f5f889 48%,#d2edf35c 100%)}body:has(.landing_page):before{z-index:1;background:linear-gradient(90deg,#eef9fc4a 0%,#e4f5f83d 55%,transparent 100%)}.top_nav{background:#f8fcf4d4;border-bottom:1px solid #9ccbd74d;box-shadow:0 5px 22px #2b607216}.brand{color:#12344a}.brand strong{color:#148aa0}.brand_mark{color:#148aa0;background:#eaf8fb;border-color:#42a9bb70}.nav_links a{color:#527080}.nav_links a:hover{color:#0f526b}.nav_action{color:#0d6078;background:#e3f5f8;border-color:#44a9ba88}.hero h1{color:#12344a;text-shadow:0 2px 12px #fff}.hero_intro{color:#355b6d}.feature_line{color:#284e61}.eyebrow{color:#087b91;background:#ffffff78;border-color:#3aa2b58a}.hero_form{color:#17364a!important;text-shadow:0 1px 8px #fff!important}.hero_form h2{color:#123f55}.hero_form>p{color:#3f6172!important}.hero_form label{color:#214f63}.hero_form select,.hero_form input[type=text]{background:#ffffffd9;color:#17364a;border-color:#7db6c5}.privacy_note{color:#416777!important}.hero_disclaimer{color:#456979}.background_controls{background:#f6fcf4c7;border-color:#82bac799;box-shadow:0 8px 25px #25596b22}.background_controls button{color:#176a80;background:#ffffffc9;border-color:#72aebc88}.background_controls button:hover{color:#fff;background:#2399ad}.background_dots .background_dot{background:#77a9b5}.background_dots .background_dot.active{background:#168ca2}.install_action{background:#168ca2}.container{color:#183b4d;text-shadow:0 1px 8px #fff}.container h1,.container h2,.container h3{color:#124d66}.category,a{color:#12677f}.phone a{display:inline-block;padding:.35rem .65rem;border-radius:7px;background:#daf3f7;color:#075f75;text-shadow:none}.phone_unverified{color:#6b7280;font-size:.82rem}.emergency_contact{margin:.75rem 0 1rem;padding:.8rem 1rem;border-left:4px solid #dc2626;background:#fff7f7d9;border-radius:8px;text-shadow:none}.emergency_contact a{font-size:1.15rem;color:#b91c1c;text-decoration:underline}.answer_form{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center}.answer_form input[type=hidden]{display:none}.answer_form button{width:112px;min-height:44px;margin:.4rem 0;padding:.6rem 1rem}.answer_form .no_button{width:112px}#locate_button{width:auto;min-width:280px;max-width:100%;margin:.6rem auto 1rem;padding:.7rem 1.25rem}@media(max-width:420px){.answer_form button,.answer_form .no_button{width:100px}#locate_button{min-width:0;width:auto;padding:.65rem 1rem;font-size:.85rem}}"]).
 
 background_carousel_script(_Request) :-
     format('Content-type: application/javascript; charset=UTF-8~n~n'),
@@ -433,15 +612,88 @@ manifest_file(Request) :-
 pwa_script(Request) :-
     http_reply_file('pwa.js',
                     [mime_type('application/javascript'), cache(false)], Request).
+location_script(Request) :-
+    http_reply_file('location.js',
+                    [mime_type('application/javascript'), cache(false)], Request).
+voice_script(Request) :-
+    http_reply_file('voice.js',
+                    [mime_type('application/javascript'), cache(false)], Request).
+voice_stylesheet(Request) :-
+    http_reply_file('voice.css',
+                    [mime_type('text/css'), cache(false)], Request).
+mobile_stylesheet(Request) :-
+    http_reply_file('mobile.css',
+                    [mime_type('text/css'), cache(false)], Request).
+ollama_script(Request) :-
+    http_reply_file('ollama.js',
+                    [mime_type('application/javascript'), cache(false)], Request).
+
+local_llm_explain(Request) :-
+    http_read_json_dict(Request, Input),
+    Disease = Input.get(disease),
+    Advice = Input.get(advice),
+    Specialist = Input.get(specialist),
+    LanguageValue = Input.get(language),
+    ( string(LanguageValue) -> atom_string(Language, LanguageValue)
+    ; Language = LanguageValue
+    ),
+    ( catch(local_ai_explanation(Disease, Advice, Specialist, Language,
+                                 Explanation, Model), _, fail) ->
+        Source = local_ai
+    ; builtin_explanation(Language, Disease, Advice, Specialist, Explanation),
+      Model = built_in,
+      Source = built_in
+    ),
+    reply_json_dict(_{explanation:Explanation, model:Model, source:Source}).
+
+local_ai_explanation(Disease, Advice, Specialist, Language, Explanation, Model) :-
+    ( getenv('OLLAMA_MODEL', Model) -> true ; Model = 'gemma3:270m' ),
+    format(string(Prompt),
+           'Explain this rule-based health screening result in clear, reassuring language. Output language code: ~w. Possible condition: ~w. Suggested professional: ~w. Existing guidance: ~w. Do not make a new diagnosis, do not prescribe medicine, and do not contradict the guidance. Use at most 120 words. End by advising professional medical care and emergency services for severe symptoms.',
+           [Language, Disease, Specialist, Advice]),
+    Payload = _{model:Model, prompt:Prompt, stream:false,
+                options:_{temperature:0.2}},
+    setup_call_cleanup(
+        http_open('http://127.0.0.1:11434/api/generate', Stream,
+                  [post(json(Payload)), timeout(90)]),
+        json_read_dict(Stream, OllamaReply),
+        close(Stream)),
+    Explanation = OllamaReply.response.
+
+builtin_explanation(fr, Disease, Advice, Specialist, Explanation) :- !,
+    format(string(Explanation),
+           'Vos réponses correspondent au profil de dépistage suivant : ~w. Ce résultat est une indication éducative et non un diagnostic confirmé. Professionnel recommandé : ~w. Conseil : ~w Consultez un professionnel qualifié et demandez des soins urgents si les symptômes sont graves ou s’aggravent.',
+           [Disease, Specialist, Advice]).
+builtin_explanation(es, Disease, Advice, Specialist, Explanation) :- !,
+    format(string(Explanation),
+           'Sus respuestas coinciden con el siguiente patrón de detección: ~w. Este resultado es una orientación educativa, no un diagnóstico confirmado. Profesional recomendado: ~w. Orientación: ~w Consulte a un profesional cualificado y busque atención urgente si los síntomas son graves o empeoran.',
+           [Disease, Specialist, Advice]).
+builtin_explanation(zh, Disease, Advice, Specialist, Explanation) :- !,
+    format(string(Explanation),
+           '您的回答符合以下筛查模式：~w。此结果仅供健康教育参考，并非确诊。建议咨询的专业人员：~w。建议：~w 请咨询合格的医疗专业人员；如果症状严重或持续恶化，请立即寻求紧急医疗帮助。',
+           [Disease, Specialist, Advice]).
+builtin_explanation(_, Disease, Advice, Specialist, Explanation) :-
+    format(string(Explanation),
+           'Your answers match the screening pattern for ~w. This is educational guidance, not a confirmed diagnosis. The recommended professional is ~w. What to do: ~w Please consult a qualified healthcare professional, and seek urgent care if symptoms are severe or getting worse.',
+           [Disease, Specialist, Advice]).
 service_worker(Request) :-
     http_reply_file('sw.js',
                     [mime_type('application/javascript'), cache(false)], Request).
 app_icon(Request) :-
     http_reply_file('assets/app-icon.svg',
                     [mime_type('image/svg+xml'), cache(true)], Request).
+app_icon_192(Request) :-
+    http_reply_file('assets/app-icon-192.png',
+                    [mime_type('image/png'), cache(true)], Request).
+app_icon_512(Request) :-
+    http_reply_file('assets/app-icon-512.png',
+                    [mime_type('image/png'), cache(true)], Request).
+offline_page(Request) :-
+    http_reply_file('offline.html',
+                    [mime_type('text/html'), cache(false)], Request).
 
 distance_script(_Request) :-
     format('Content-type: application/javascript; charset=UTF-8~n~n'),
-    format('~s', ["document.addEventListener('DOMContentLoaded',()=>{const button=document.getElementById('locate_button');if(!button)return;const box=document.getElementById('address_verification'),status=document.getElementById('location_status'),section=document.getElementById('facilities_section'),address=box.getAttribute('data_address');const rad=x=>x*Math.PI/180;const distance=(a,b,c,d)=>{const R=6371,dp=rad(c-a),dl=rad(d-b),q=Math.sin(dp/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(q))};button.addEventListener('click',async()=>{button.disabled=true;status.textContent='Verifying your address in Ghana...';try{const query=encodeURIComponent(address+', Ghana'),response=await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=gh&limit=1&addressdetails=1&q=${query}`,{headers:{'Accept':'application/json'}});if(!response.ok)throw new Error('Map service unavailable');const places=await response.json();if(!places.length)throw new Error('Address not found');const originLat=Number(places[0].lat),originLon=Number(places[0].lon),cards=[...document.querySelectorAll('.facility')];cards.forEach(card=>{const lat=Number(card.getAttribute('data_lat')),lon=Number(card.getAttribute('data_lon')),km=distance(originLat,originLon,lat,lon),roadKm=km*1.25,minutes=Math.max(1,Math.round(roadKm/35*60));card.dataset.distance=roadKm;card.querySelector('.distance').textContent=`Approximately ${roadKm.toFixed(1)} km away · about ${minutes} minutes by car`;const link=card.querySelector('.directions');link.href=`https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${lat},${lon}&travelmode=driving`});const grid=section.querySelector('.facilities');cards.sort((a,b)=>Number(a.dataset.distance)-Number(b.dataset.distance)).forEach(card=>grid.appendChild(card));section.hidden=false;status.textContent=`Address verified near ${places[0].display_name}. Distances and times are estimates; use live directions for road and traffic details.`;button.textContent='Address verified';button.disabled=true}catch(error){status.textContent='We could not verify that address. Check the house address or GhanaPost GPS code and try again.';button.disabled=false}})});"]).
+    format('~s', ["document.addEventListener('DOMContentLoaded',()=>{const button=document.getElementById('locate_button');if(!button)return;const box=document.getElementById('address_verification'),status=document.getElementById('location_status'),section=document.getElementById('facilities_section'),saved=box.getAttribute('data_address');const rad=x=>x*Math.PI/180;const distance=(a,b,c,d)=>{const R=6371,dp=rad(c-a),dl=rad(d-b),q=Math.sin(dp/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(q))};const showNearby=(originLat,originLon)=>{const cards=[...document.querySelectorAll('.facility')];cards.forEach(card=>{const lat=Number(card.getAttribute('data_lat')),lon=Number(card.getAttribute('data_lon')),km=distance(originLat,originLon,lat,lon),roadKm=km*1.25,minutes=Math.max(1,Math.round(roadKm/35*60));card.dataset.distance=roadKm;card.querySelector('.distance').textContent=`Approximately ${roadKm.toFixed(1)} km away · about ${minutes} minutes by car`;card.querySelector('.directions').href=`https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${lat},${lon}&travelmode=driving`});const grid=section.querySelector('.facilities');cards.sort((a,b)=>Number(a.dataset.distance)-Number(b.dataset.distance)).forEach(card=>grid.appendChild(card));section.hidden=false;status.textContent='Nearby facilities are sorted by estimated distance. Open live directions for actual roads and traffic.';button.textContent='Location identified';button.disabled=true};const requestLocation=()=>{if(!navigator.geolocation){status.textContent='Location is unavailable. Facilities for your selected region are shown without distance estimates.';section.hidden=false;return}button.disabled=true;status.textContent='Identifying your current location...';navigator.geolocation.getCurrentPosition(pos=>showNearby(pos.coords.latitude,pos.coords.longitude),()=>{status.textContent='Location permission was denied. Facilities for your selected region are shown without distance estimates.';section.hidden=false;button.disabled=false},{enableHighAccuracy:true,timeout:10000,maximumAge:300000})};button.addEventListener('click',requestLocation);if(saved&&saved.startsWith('geo:')){const parts=saved.slice(4).split(',').map(Number);if(parts.length===2&&parts.every(Number.isFinite))showNearby(parts[0],parts[1])}});"]).
 
 :- initialization(run, main).

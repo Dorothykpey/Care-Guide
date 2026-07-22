@@ -39,7 +39,52 @@ execute_diagnosis :-
     writeln('Final Diagnosis: unknown_disease'),
     writeln('Attending Doctor: General Practitioner (GP) / Emergency Physician'),
     writeln('Advice:          The system could not identify the disease clearly. Please consult a medical professional.'),
-    writeln('----------------------------------------').
+    writeln('----------------------------------------'),
+    offer_reproductive_health_consultation,
+    get_user_region_and_route.
+
+% This is a separate reproductive-health pathway, not a disease diagnosis.
+offer_reproductive_health_consultation :-
+    nl,
+    writeln('Is your concern about a missed period or possible pregnancy? (y/n)'),
+    read(Response),
+    ( member(Response, [yes, y, 'YES', 'Y', 'Yes']) ->
+        reproductive_health_consultation
+    ; member(Response, [no, n, 'NO', 'N', 'No']) ->
+        true
+    ; writeln('>>> Invalid input! Please type y. or n.'),
+      offer_reproductive_health_consultation
+    ).
+
+reproductive_health_consultation :-
+    nl,
+    writeln('PRIVATE REPRODUCTIVE-HEALTH GUIDANCE'),
+    writeln('A missed period alone does not confirm pregnancy.'),
+    writeln('Take a reliable pregnancy test as directed, or visit a clinic for testing.'),
+    writeln('Have you had severe or one-sided abdominal pain, heavy bleeding, fainting, severe dizziness, fever, or foul-smelling discharge? (y/n)'),
+    read(UrgentResponse),
+    reproductive_urgency_advice(UrgentResponse),
+    writeln('Are you considering ending a possible or confirmed pregnancy? (yes/no/unsure)'),
+    read(Intention),
+    reproductive_intention_advice(Intention),
+    writeln('You do not need to justify your decision to this program.'),
+    writeln('A qualified clinician can listen to your reasons without judgment, confirm the pregnancy and duration when needed, explain safe options, check for coercion, and respect your consent and privacy.'),
+    writeln('Do not use unknown pills, herbs, chemicals, objects, or physical injury to try to end a pregnancy.').
+
+reproductive_urgency_advice(Response) :-
+    member(Response, [yes, y, 'YES', 'Y', 'Yes']), !,
+    writeln('>>> URGENT: Seek emergency care now or call Ghana emergency services on 112.').
+reproductive_urgency_advice(_) :-
+    writeln('Arrange a timely consultation with a qualified reproductive-health professional.').
+
+reproductive_intention_advice(yes) :- !,
+    writeln('Ask a qualified provider for confidential pregnancy-options counselling and safe abortion care. Do not delay, because available care can depend on pregnancy duration and clinical circumstances.').
+reproductive_intention_advice(y) :- !,
+    reproductive_intention_advice(yes).
+reproductive_intention_advice(unsure) :- !,
+    writeln('Ask for unbiased pregnancy-options counselling so you can discuss your choices without pressure.').
+reproductive_intention_advice(_) :-
+    writeln('A clinician can assess the missed period, discuss pregnancy care if confirmed, and check other possible causes.').
 
 % Recursively checks the list of symptoms
 check_all_symptoms([]).
@@ -76,7 +121,8 @@ process_response(Symptom, _) :-
 get_user_region_and_route :-
     nl,
     writeln('To connect you with immediate medical attention, please share your region.'),
-    writeln('Current coverage regions: greater_accra, ashanti, volta.'),
+    writeln('Coverage includes all 16 regions of Ghana.'),
+    writeln('Enter names in lowercase with underscores, for example: greater_accra, upper_east, or volta.'),
     ask_region(Region),
     nl,
     writeln('================================================================='),
@@ -138,6 +184,86 @@ disease(food_poisoning,
         [vomiting, diarrhea, stomach_pain, nausea],
         'Drink enough water and visit a clinic if vomiting or diarrhea continues.',
         'Gastroenterologist / Emergency Care Physician').
+
+disease(pneumonia,
+        [fever, cough, difficulty_breathing, chest_pain, weakness],
+        'Seek prompt medical assessment. Difficulty breathing, blue lips, confusion, or severe chest pain requires emergency care.',
+        'General Physician / Pulmonologist / Emergency Physician').
+
+disease(asthma_flare,
+        [wheezing, difficulty_breathing, chest_tightness, persistent_cough],
+        'Use only your prescribed reliever inhaler as directed and seek urgent care if breathing remains difficult or speaking becomes hard.',
+        'Pulmonologist / General Physician / Emergency Physician').
+
+disease(urinary_tract_infection,
+        [painful_urination, frequent_urination, lower_abdominal_pain, cloudy_or_strong_smelling_urine],
+        'Visit a clinic for a urine test and appropriate treatment. Fever, back pain, vomiting, or pregnancy requires prompt assessment.',
+        'General Physician / Urologist').
+
+disease(migraine,
+        [severe_headache, sensitivity_to_light, nausea, visual_disturbance],
+        'Rest in a quiet dark room and seek medical advice. A sudden worst-ever headache, weakness, confusion, or trouble speaking is an emergency.',
+        'General Physician / Neurologist').
+
+disease(allergic_rhinitis,
+        [sneezing, runny_nose, itchy_eyes, nasal_congestion],
+        'Avoid known triggers and consult a pharmacist or clinician about safe symptom relief, especially if breathing is affected.',
+        'General Physician / Allergy Specialist').
+
+disease(tonsillitis,
+        [sore_throat, painful_swallowing, fever, swollen_neck_glands],
+        'Drink fluids and arrange a clinical examination. Seek urgent care for breathing difficulty, drooling, or inability to swallow.',
+        'General Physician / Ear Nose and Throat Specialist').
+
+disease(conjunctivitis,
+        [red_eye, itchy_eye, eye_discharge, watery_eye],
+        'Avoid rubbing the eye, wash your hands frequently, and obtain clinical advice. Eye pain, injury, or reduced vision needs urgent assessment.',
+        'General Physician / Ophthalmologist').
+
+disease(skin_infection,
+        [red_swollen_skin, skin_warmth, skin_pain, pus_or_discharge],
+        'Keep the area clean and seek medical assessment. Rapidly spreading redness, fever, severe pain, or facial involvement requires urgent care.',
+        'General Physician / Dermatologist').
+
+disease(diabetes_warning_signs,
+        [frequent_urination, excessive_thirst, unexplained_weight_loss, blurred_vision, tiredness],
+        'Arrange a blood glucose test promptly. Vomiting, deep or rapid breathing, confusion, or severe weakness requires emergency care.',
+        'General Physician / Endocrinologist').
+
+disease(anaemia,
+        [tiredness, weakness, pale_skin, dizziness, shortness_of_breath_on_exertion],
+        'Visit a clinician for examination and a blood count. Chest pain, fainting, severe breathlessness, or active bleeding requires urgent care.',
+        'General Physician / Haematologist').
+
+disease(acid_reflux,
+        [burning_chest_after_meals, sour_taste_in_mouth, belching, symptoms_worse_when_lying_down],
+        'Avoid large late meals and known triggers, and seek clinical advice if symptoms persist. New or severe chest pain must be assessed urgently.',
+        'General Physician / Gastroenterologist').
+
+disease(sinusitis,
+        [facial_pain_or_pressure, nasal_congestion, thick_nasal_discharge, reduced_sense_of_smell],
+        'Rest, drink fluids, and seek medical advice if symptoms are severe, persistent, or worsening. Eye swelling, confusion, or severe headache needs urgent care.',
+        'General Physician / Ear Nose and Throat Specialist').
+
+disease(ear_infection,
+        [ear_pain, reduced_hearing, ear_discharge, fever],
+        'Arrange a clinical ear examination and keep objects and unprescribed drops out of the ear. Swelling behind the ear or severe illness requires urgent care.',
+        'General Physician / Ear Nose and Throat Specialist').
+
+disease(dehydration,
+        [excessive_thirst, dry_mouth, reduced_urination, dizziness, weakness],
+        'Take frequent small amounts of safe oral fluids or oral rehydration solution. Confusion, fainting, inability to drink, or very little urine requires urgent care.',
+        'General Physician / Emergency Physician').
+
+disease(chickenpox,
+        [itchy_blistering_rash, fever, tiredness, loss_of_appetite],
+        'Avoid close contact with pregnant people, newborns, and immunocompromised people, and seek clinical advice. Breathing trouble, confusion, or severe illness is urgent.',
+        'General Physician / Paediatrician / Dermatologist').
+
+disease(scabies,
+        [intense_nighttime_itching, small_bumpy_rash, rash_between_fingers, household_members_itching],
+        'Seek confirmation and treatment advice from a clinician or pharmacist. Close household contacts and clothing or bedding may also need coordinated treatment.',
+        'General Physician / Dermatologist').
 
 % -------------------------------------------------------------------------
 % KNOWLEDGE BASE: HOSPITALS CATEGORIZED BY REGION
